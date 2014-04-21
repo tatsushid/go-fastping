@@ -45,13 +45,15 @@ func main() {
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt)
 	signal.Notify(c, syscall.SIGTERM)
+	wait := make(chan bool)
 
 loop:
 	for {
 		select {
 		case <-c:
 			fmt.Println("get interrupted")
-			break loop
+			signal.Stop(c)
+			quit <- wait
 		case res := <-onRecv:
 			if _, ok := results[res.addr.String()]; ok {
 				results[res.addr.String()] = res
@@ -67,10 +69,10 @@ loop:
 			}
 		case err := <-errch:
 			fmt.Println("Ping failed: %v", err)
+			signal.Stop(c)
+			quit <- wait
+		case <-wait:
 			break loop;
 		}
 	}
-	wait := make(chan bool)
-	quit <- wait
-	<-wait
 }
