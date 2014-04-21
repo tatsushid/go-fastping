@@ -152,13 +152,13 @@ func TestMultiRun(t *testing.T) {
 		break
 	}
 	mu.Lock()
+	defer mu.Unlock()
 	if res1 != 1 {
 		t.Fatalf("Pinger 1 didn't get correct response")
 	}
 	if res2 != 1 {
 		t.Fatalf("Pinger 2 didn't get correct response")
 	}
-	mu.Unlock()
 }
 
 func TestRunLoop(t *testing.T) {
