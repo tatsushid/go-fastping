@@ -151,11 +151,11 @@ func (p *Pinger) AddHandler(event string, handler interface{}) error {
 // Invoke a single send/receive procedure. It sends packets to all hosts which
 // have already been added by AddIP() etc. and wait those responses. When it
 // receives a response, it calls "receive" handler registered by AddHander().
-// After MaxRTT seconds, it calls "idle" handler and returns to caller. It
-// means it blocks until MaxRTT seconds passed. For the purpose of
-// sending/receiving packets over and over, use RunLoop().
-func (p *Pinger) Run() {
-	p.run(true, make(chan chan<- bool))
+// After MaxRTT seconds, it calls "idle" handler and returns to caller with
+// an error value. It means it blocks until MaxRTT seconds passed. For the
+// purpose of sending/receiving packets over and over, use RunLoop().
+func (p *Pinger) Run() error {
+	return p.run(true, make(chan chan<- bool))
 }
 
 // Invode send/receive procedure repeatedly. It sends packets to all hosts which
@@ -164,33 +164,42 @@ func (p *Pinger) Run() {
 // After MaxRTT seconds, it calls "idle" handler, resend packets and wait those
 // response. MaxRTT works as an interval time.
 //
-// This is a non-blocking method so immediately returns with a channel value.
+// This is a non-blocking method so immediately returns with channel values.
 // If you want to stop sending packets, send a channel value of bool type to it
 // and wait for graceful shutdown. For example,
 //
-//	quit := p.RunLoop()
 //	wait := make(chan bool)
-//	quit <- wait
-//	<-wait
+//	quit, errch := p.RunLoop()
+//	ticker := time.NewTicker(time.Millisecond * 250)
+//	select {
+//	case err := <-errch:
+//		log.Fatalf("Ping failed: %v", err)
+//	case <-ticker.C:
+//		quit <- wait
+//	case <-wait:
+//		break
+//	}
 //
 // For more detail, please see "cmd/ping/ping.go".
-func (p *Pinger) RunLoop() chan<- chan<- bool {
+func (p *Pinger) RunLoop() (chan<- chan<- bool, <-chan error) {
 	quit := make(chan chan<- bool)
-	go p.run(false, quit)
-	return quit
+	errch := make(chan error)
+	go func(ch chan<- error) {
+		err := p.run(false, quit)
+		if err != nil {
+			ch <- err
+		}
+	}(errch)
+	return quit, errch
 }
 
-func (p *Pinger) run(once bool, quit <-chan chan<- bool) {
+func (p *Pinger) run(once bool, quit <-chan chan<- bool) error {
 	p.debugln("Run(): Start")
 	conn, err := net.ListenIP("ip4:icmp", &net.IPAddr{IP: net.IPv4zero})
 	if err != nil {
-		panic(err)
+		return err
 	}
-	defer func() {
-		if err := conn.Close(); err != nil {
-			panic(err)
-		}
-	}()
+	defer conn.Close()
 
 	var join chan<- bool
 	recv, stoprecv, waitjoin := make(chan *packet), make(chan chan<- bool), make(chan bool)
@@ -199,7 +208,7 @@ func (p *Pinger) run(once bool, quit <-chan chan<- bool) {
 	go p.recvICMP4(conn, recv, stoprecv)
 
 	p.debugln("Run(): call sendICMP4()")
-	queue := p.sendICMP4(conn)
+	queue, err := p.sendICMP4(conn)
 
 	ticker := time.NewTicker(p.MaxRTT)
 
@@ -217,13 +226,13 @@ mainloop:
 					hdl()
 				}
 			}
-			if once {
+			if once || err != nil {
 				p.debugln("Run(): stoprecv <- waitjoin")
 				stoprecv <- waitjoin
 				break mainloop
 			}
 			p.debugln("Run(): call sendICMP4()")
-			queue = p.sendICMP4(conn)
+			queue, err = p.sendICMP4(conn)
 		case r := <-recv:
 			p.debugln("Run(): <-recv")
 			p.procRecv(r, queue)
@@ -239,10 +248,10 @@ mainloop:
 		join <- true
 	}
 	p.debugln("Run(): End")
-	return
+	return err
 }
 
-func (p *Pinger) sendICMP4(conn *net.IPConn) map[string]*net.IPAddr {
+func (p *Pinger) sendICMP4(conn *net.IPConn) (map[string]*net.IPAddr, error) {
 	p.debugln("sendICMP4(): Start")
 	p.id = rand.Intn(0xffff)
 	p.seq = rand.Intn(0xffff)
@@ -258,7 +267,12 @@ func (p *Pinger) sendICMP4(conn *net.IPConn) map[string]*net.IPAddr {
 			},
 		}).Marshal()
 		if err != nil {
-			panic(err)
+			for i := 0; i < qlen; i++ {
+				p.debugln("sendICMP4(): wait goroutine")
+				<-sent
+				p.debugln("sendICMP4(): join goroutine")
+			}
+			return queue, err
 		}
 
 		queue[k] = v
@@ -286,7 +300,7 @@ func (p *Pinger) sendICMP4(conn *net.IPConn) map[string]*net.IPAddr {
 		p.debugln("sendICMP4(): join goroutine")
 	}
 	p.debugln("sendICMP4(): End")
-	return queue
+	return queue, nil
 }
 
 func (p *Pinger) recvICMP4(conn *net.IPConn, recv chan<- *packet, stoprecv <-chan chan<- bool) {

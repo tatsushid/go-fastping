@@ -61,7 +61,10 @@ func TestRun(t *testing.T) {
 	p.AddHandler("idle", func() {
 		idle = true
 	})
-	p.Run()
+	err := p.Run()
+	if err != nil {
+		t.Fatalf("Pinger returns error: %v", err)
+	}
 	if !called {
 		t.Fatalf("Pinger didn't get any responses")
 	}
@@ -104,7 +107,9 @@ func TestMultiRun(t *testing.T) {
 	})
 	p1.MaxRTT, p2.MaxRTT = time.Millisecond*100, time.Millisecond*100
 
-	p1.Run()
+	if err := p1.Run(); err != nil {
+		t.Fatalf("Pinger 1 returns error: %v", err)
+	}
 	if res1 == 0 {
 		t.Fatalf("Pinger 1 didn't get any responses")
 	}
@@ -113,7 +118,9 @@ func TestMultiRun(t *testing.T) {
 	}
 
 	res1, res2 = 0, 0
-	p2.Run()
+	if err := p2.Run(); err != nil {
+		t.Fatalf("Pinger 2 returns error: %v", err)
+	}
 	if res1 > 0 {
 		t.Fatalf("Pinger 1 got response")
 	}
@@ -122,9 +129,28 @@ func TestMultiRun(t *testing.T) {
 	}
 
 	res1, res2 = 0, 0
-	go p1.Run()
-	go p2.Run()
-	time.Sleep(time.Millisecond * 200)
+	errch1, errch2 := make(chan error), make(chan error)
+	go func(ch chan error) {
+		err := p1.Run()
+		if err != nil {
+			ch <- err
+		}
+	}(errch1)
+	go func(ch chan error) {
+		err := p2.Run()
+		if err != nil {
+			ch <- err
+		}
+	}(errch2)
+	ticker := time.NewTicker(time.Millisecond * 200)
+	select {
+	case err := <-errch1:
+		t.Fatalf("Pinger 1 returns error: %v", err)
+	case err := <-errch2:
+		t.Fatalf("Pinger 2 returns error: %v", err)
+	case <-ticker.C:
+		break
+	}
 	mu.Lock()
 	if res1 != 1 {
 		t.Fatalf("Pinger 1 didn't get correct response")
@@ -151,11 +177,17 @@ func TestRunLoop(t *testing.T) {
 		idleCount++
 	})
 
-	quit := p.RunLoop()
-	time.Sleep(time.Millisecond * 250)
 	wait := make(chan bool)
-	quit <- wait
-	<-wait
+	quit, errch := p.RunLoop()
+	ticker := time.NewTicker(time.Millisecond * 250)
+	select {
+	case err := <-errch:
+		t.Fatalf("Pinger returns error %v", err)
+	case <-ticker.C:
+		quit <- wait
+	case <-wait:
+		break
+	}
 
 	if recvCount < 2 {
 		t.Fatalf("Pinger recieve count less than 2")
