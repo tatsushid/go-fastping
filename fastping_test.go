@@ -190,7 +190,7 @@ func TestRunLoop(t *testing.T) {
 	}
 
 	if recvCount < 2 {
-		t.Fatalf("Pinger recieve count less than 2")
+		t.Fatalf("Pinger receive count less than 2")
 	}
 	if idleCount < 2 {
 		t.Fatalf("Pinger idle count less than 2")
