@@ -180,13 +180,17 @@ func TestRunLoop(t *testing.T) {
 	wait := make(chan bool)
 	quit, errch := p.RunLoop()
 	ticker := time.NewTicker(time.Millisecond * 250)
-	select {
-	case err := <-errch:
-		t.Fatalf("Pinger returns error %v", err)
-	case <-ticker.C:
-		quit <- wait
-	case <-wait:
-		break
+loop:
+	for {
+		select {
+		case err := <-errch:
+			t.Fatalf("Pinger returns error %v", err)
+		case <-ticker.C:
+			ticker.Stop()
+			quit <- wait
+		case <-wait:
+			break loop
+		}
 	}
 
 	if recvCount < 2 {
