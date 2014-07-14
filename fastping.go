@@ -44,11 +44,6 @@ import (
 	"time"
 )
 
-func init() {
-	log.SetFlags(log.Lmicroseconds)
-	log.SetPrefix("Debug: ")
-}
-
 func timeToBytes(t time.Time) []byte {
 	nsec := t.UnixNano()
 	b := make([]byte, 8)
