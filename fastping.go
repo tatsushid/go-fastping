@@ -135,14 +135,16 @@ func (p *Pinger) AddHandler(event string, handler interface{}) error {
 	case "receive":
 		if hdl, ok := handler.(func(*net.IPAddr, time.Duration)); ok {
 			p.handlers[event] = hdl
+			return nil
 		} else {
-			errors.New(fmt.Sprintf("Receive event handler should be `func(*net.IPAddr, time.Duration)`"))
+			return errors.New(fmt.Sprintf("Receive event handler should be `func(*net.IPAddr, time.Duration)`"))
 		}
 	case "idle":
 		if hdl, ok := handler.(func()); ok {
 			p.handlers[event] = hdl
+			return nil
 		} else {
-			errors.New(fmt.Sprintf("Idle event handler should be `func()`"))
+			return errors.New(fmt.Sprintf("Idle event handler should be `func()`"))
 		}
 	}
 	return errors.New(fmt.Sprintf("No such event: %s", event))
