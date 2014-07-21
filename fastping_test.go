@@ -50,7 +50,7 @@ func TestRun(t *testing.T) {
 
 	found1, found100 := false, false
 	called, idle := false, false
-	p.AddHandler("receive", func(ip *net.IPAddr, d time.Duration) {
+	err := p.AddHandler("receive", func(ip *net.IPAddr, d time.Duration) {
 		called = true
 		if ip.String() == "127.0.0.1" {
 			found1 = true
@@ -58,10 +58,18 @@ func TestRun(t *testing.T) {
 			found100 = true
 		}
 	})
-	p.AddHandler("idle", func() {
+	if err != nil {
+		t.Fatalf("Failed to add receive hander: %v", err)
+	}
+
+	err = p.AddHandler("idle", func() {
 		idle = true
 	})
-	err := p.Run()
+	if err != nil {
+		t.Fatalf("Failed to add idle handler: %v", err)
+	}
+
+	err = p.Run()
 	if err != nil {
 		t.Fatalf("Pinger returns error: %v", err)
 	}
@@ -93,18 +101,25 @@ func TestMultiRun(t *testing.T) {
 
 	var mu sync.Mutex
 	res1 := 0
-	p1.AddHandler("receive", func(*net.IPAddr, time.Duration) {
+	err := p1.AddHandler("receive", func(*net.IPAddr, time.Duration) {
 		mu.Lock()
 		res1++
 		mu.Unlock()
 	})
+	if err != nil {
+		t.Fatalf("Failed to add receive hander: %v", err)
+	}
 
 	res2 := 0
-	p2.AddHandler("receive", func(*net.IPAddr, time.Duration) {
+	err = p2.AddHandler("receive", func(*net.IPAddr, time.Duration) {
 		mu.Lock()
 		res2++
 		mu.Unlock()
 	})
+	if err != nil {
+		t.Fatalf("Failed to add idle handler: %v", err)
+	}
+
 	p1.MaxRTT, p2.MaxRTT = time.Millisecond*100, time.Millisecond*100
 
 	if err := p1.Run(); err != nil {
@@ -170,12 +185,19 @@ func TestRunLoop(t *testing.T) {
 	p.MaxRTT = time.Millisecond * 100
 
 	recvCount, idleCount := 0, 0
-	p.AddHandler("receive", func(*net.IPAddr, time.Duration) {
+	err := p.AddHandler("receive", func(*net.IPAddr, time.Duration) {
 		recvCount++
 	})
-	p.AddHandler("idle", func() {
+	if err != nil {
+		t.Fatalf("Failed to add receive handler: %v", err)
+	}
+
+	err = p.AddHandler("idle", func() {
 		idleCount++
 	})
+	if err != nil {
+		t.Fatalf("Failed to add idle handler: %v", err)
+	}
 
 	wait := make(chan bool)
 	quit, errch := p.RunLoop()
