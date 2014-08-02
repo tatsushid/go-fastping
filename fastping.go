@@ -71,7 +71,9 @@ type Pinger struct {
 	id  int
 	seq int
 	// key string is IPAddr.String()
-	addrs map[string]*net.IPAddr
+	addrs   map[string]*net.IPAddr
+	quit    chan chan<- bool
+	running bool
 	// Number of (nano,milli)seconds of an idle timeout. Once it passed,
 	// the library calls an idle callback function. It is also used for an
 	// interval time of RunLoop() method
@@ -88,6 +90,7 @@ func NewPinger() *Pinger {
 		id:       rand.Intn(0xffff),
 		seq:      rand.Intn(0xffff),
 		addrs:    make(map[string]*net.IPAddr),
+		running:  false,
 		MaxRTT:   time.Second,
 		handlers: make(map[string]interface{}),
 		Debug:    false,
@@ -152,7 +155,7 @@ func (p *Pinger) AddHandler(event string, handler interface{}) error {
 // an error value. It means it blocks until MaxRTT seconds passed. For the
 // purpose of sending/receiving packets over and over, use RunLoop().
 func (p *Pinger) Run() error {
-	return p.run(true, make(chan chan<- bool))
+	return p.run(true)
 }
 
 // Invode send/receive procedure repeatedly. It sends packets to all hosts which
@@ -161,40 +164,42 @@ func (p *Pinger) Run() error {
 // After MaxRTT seconds, it calls "idle" handler, resend packets and wait those
 // response. MaxRTT works as an interval time.
 //
-// This is a non-blocking method so immediately returns with channel values.
-// If you want to stop sending packets, send a channel value of bool type to it
-// and wait for graceful shutdown. For example,
+// This is a non-blocking method so immediately returns with channel value.
+// If you want to stop sending packets, use Stop(). For example,
 //
-//	wait := make(chan bool)
-//	quit, errch := p.RunLoop()
+//	errch := p.RunLoop()
 //	ticker := time.NewTicker(time.Millisecond * 250)
-//	loop:
-//	for {
-//		select {
-//		case err := <-errch:
-//			log.Fatalf("Ping failed: %v", err)
-//		case <-ticker.C:
-//			ticker.Stop()
-//			quit <- wait
-//		case <-wait:
-//			break loop
-//		}
+//	select {
+//	case err := <-errch:
+//		log.Fatalf("Ping failed: %v", err)
+//	case <-ticker.C:
+//		break
 //	}
+//	ticker.Stop()
+//	p.Stop()
 //
 // For more detail, please see "cmd/ping/ping.go".
-func (p *Pinger) RunLoop() (chan<- chan<- bool, <-chan error) {
-	quit := make(chan chan<- bool)
+func (p *Pinger) RunLoop() <-chan error {
+	p.quit = make(chan chan<- bool)
 	errch := make(chan error)
 	go func(ch chan<- error) {
-		err := p.run(false, quit)
+		err := p.run(false)
 		if err != nil {
 			ch <- err
 		}
 	}(errch)
-	return quit, errch
+	return errch
 }
 
-func (p *Pinger) run(once bool, quit <-chan chan<- bool) error {
+func (p *Pinger) Stop() {
+	if p.running {
+		wait := make(chan bool)
+		p.quit <- wait
+		<-wait
+	}
+}
+
+func (p *Pinger) run(once bool) error {
 	p.debugln("Run(): Start")
 	conn, err := net.ListenIP("ip4:icmp", &net.IPAddr{IP: net.IPv4zero})
 	if err != nil {
@@ -212,14 +217,13 @@ func (p *Pinger) run(once bool, quit <-chan chan<- bool) error {
 	queue, err := p.sendICMP4(conn)
 
 	ticker := time.NewTicker(p.MaxRTT)
+	p.running = true
 
 mainloop:
 	for {
 		select {
-		case join = <-quit:
-			p.debugln("Run(): <-quit")
-			p.debugln("Run(): stoprecv <- waitjoin")
-			stoprecv <- waitjoin
+		case join = <-p.quit:
+			p.debugln("Run(): <-p.quit")
 			break mainloop
 		case <-ticker.C:
 			if handler, ok := p.handlers["idle"]; ok && handler != nil {
@@ -228,8 +232,6 @@ mainloop:
 				}
 			}
 			if once || err != nil {
-				p.debugln("Run(): stoprecv <- waitjoin")
-				stoprecv <- waitjoin
 				break mainloop
 			}
 			p.debugln("Run(): call sendICMP4()")
@@ -240,8 +242,11 @@ mainloop:
 		}
 	}
 
+	p.running = false
 	ticker.Stop()
 
+	p.debugln("Run(): stoprecv <- waitjoin")
+	stoprecv <- waitjoin
 	p.debugln("Run(): <-waitjoin")
 	<-waitjoin
 	if !once {

@@ -199,21 +199,16 @@ func TestRunLoop(t *testing.T) {
 		t.Fatalf("Failed to add idle handler: %v", err)
 	}
 
-	wait := make(chan bool)
-	quit, errch := p.RunLoop()
+	errch := p.RunLoop()
 	ticker := time.NewTicker(time.Millisecond * 250)
-loop:
-	for {
-		select {
-		case err := <-errch:
-			t.Fatalf("Pinger returns error %v", err)
-		case <-ticker.C:
-			ticker.Stop()
-			quit <- wait
-		case <-wait:
-			break loop
-		}
+	select {
+	case err := <-errch:
+		t.Fatalf("Pinger returns error %v", err)
+	case <-ticker.C:
+		break
 	}
+	ticker.Stop()
+	p.Stop()
 
 	if recvCount < 2 {
 		t.Fatalf("Pinger receive count less than 2")

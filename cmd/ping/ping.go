@@ -40,20 +40,18 @@ func main() {
 	})
 
 	p.MaxRTT = time.Second
-	quit, errch := p.RunLoop()
+	errch := p.RunLoop()
 
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt)
 	signal.Notify(c, syscall.SIGTERM)
-	wait := make(chan bool)
 
 loop:
 	for {
 		select {
 		case <-c:
 			fmt.Println("get interrupted")
-			signal.Stop(c)
-			quit <- wait
+			break loop
 		case res := <-onRecv:
 			if _, ok := results[res.addr.String()]; ok {
 				results[res.addr.String()] = res
@@ -69,10 +67,9 @@ loop:
 			}
 		case err := <-errch:
 			fmt.Println("Ping failed: %v", err)
-			signal.Stop(c)
-			quit <- wait
-		case <-wait:
-			break loop;
+			break loop
 		}
 	}
+	signal.Stop(c)
+	p.Stop()
 }
