@@ -96,7 +96,7 @@ func TestMultiRun(t *testing.T) {
 	}
 
 	if err := p2.AddIP("127.0.0.1"); err != nil {
-		t.Fatalf("AddIP 1 failed: %v", err)
+		t.Fatalf("AddIP 2 failed: %v", err)
 	}
 
 	var mu sync.Mutex
