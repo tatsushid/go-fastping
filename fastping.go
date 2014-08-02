@@ -40,6 +40,7 @@ import (
 	"log"
 	"math/rand"
 	"net"
+	"sync"
 	"syscall"
 	"time"
 )
@@ -262,8 +263,7 @@ func (p *Pinger) sendICMP4(conn *net.IPConn) (map[string]*net.IPAddr, error) {
 	p.id = rand.Intn(0xffff)
 	p.seq = rand.Intn(0xffff)
 	queue := make(map[string]*net.IPAddr)
-	qlen := 0
-	sent := make(chan bool)
+	var wg sync.WaitGroup
 	for k, v := range p.addrs {
 		bytes, err := (&icmpMessage{
 			Type: icmpv4EchoRequest, Code: 0,
@@ -273,18 +273,14 @@ func (p *Pinger) sendICMP4(conn *net.IPConn) (map[string]*net.IPAddr, error) {
 			},
 		}).Marshal()
 		if err != nil {
-			for i := 0; i < qlen; i++ {
-				p.debugln("sendICMP4(): wait goroutine")
-				<-sent
-				p.debugln("sendICMP4(): join goroutine")
-			}
+			wg.Wait()
 			return queue, err
 		}
 
 		queue[k] = v
-		qlen++
 
 		p.debugln("sendICMP4(): Invoke goroutine")
+		wg.Add(1)
 		go func(ra *net.IPAddr, b []byte) {
 			for {
 				if _, _, err := conn.WriteMsgIP(bytes, nil, ra); err != nil {
@@ -297,14 +293,10 @@ func (p *Pinger) sendICMP4(conn *net.IPConn) (map[string]*net.IPAddr, error) {
 				break
 			}
 			p.debugln("sendICMP4(): WriteMsgIP End")
-			sent <- true
+			wg.Done()
 		}(v, bytes)
 	}
-	for i := 0; i < qlen; i++ {
-		p.debugln("sendICMP4(): wait goroutine")
-		<-sent
-		p.debugln("sendICMP4(): join goroutine")
-	}
+	wg.Wait()
 	p.debugln("sendICMP4(): End")
 	return queue, nil
 }
