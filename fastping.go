@@ -172,14 +172,14 @@ func (p *Pinger) Run() error {
 	return p.ctx.err
 }
 
-// Invode send/receive procedure repeatedly. It sends packets to all hosts which
+// Invoke send/receive procedure repeatedly. It sends packets to all hosts which
 // have already been added by AddIP() etc. and wait those responses. When it
 // receives a response, it calls "receive" handler registered by AddHander().
 // After MaxRTT seconds, it calls "idle" handler, resend packets and wait those
 // response. MaxRTT works as an interval time.
 //
 // This is a non-blocking method so immediately returns. If you want to monitor
-// and stop sending packets, use Done() and Stop() method. For example,
+// and stop sending packets, use Done() and Stop() methods. For example,
 //
 //	p.RunLoop()
 //	ticker := time.NewTicker(time.Millisecond * 250)
@@ -194,7 +194,7 @@ func (p *Pinger) Run() error {
 //	ticker.Stop()
 //	p.Stop()
 //
-// For more detail, please see "cmd/ping/ping.go".
+// For more details, please see "cmd/ping/ping.go".
 func (p *Pinger) RunLoop() {
 	p.ctx = newContext()
 	go p.run(false)
