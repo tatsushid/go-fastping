@@ -32,12 +32,20 @@ func main() {
 	p.AddIPAddr(ra)
 
 	onRecv, onIdle := make(chan *response), make(chan bool)
-	p.AddHandler("receive", func(addr *net.IPAddr, t time.Duration) {
+	err = p.AddHandler("receive", func(addr *net.IPAddr, t time.Duration) {
 		onRecv <- &response{addr: addr, rtt: t}
 	})
-	p.AddHandler("idle", func() {
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+	err = p.AddHandler("idle", func() {
 		onIdle <- true
 	})
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
 
 	p.MaxRTT = time.Second
 	p.RunLoop()
