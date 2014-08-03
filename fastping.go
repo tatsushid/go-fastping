@@ -200,10 +200,13 @@ func (p *Pinger) RunLoop() {
 	go p.run(false)
 }
 
+// Return a channel that is closed when RunLoop() is stopped by an error or
+// Stop(). It must be called after RunLoop() call. If not, it causes panic.
 func (p *Pinger) Done() <-chan bool {
 	return p.ctx.done
 }
 
+// Stop RunLoop(). It must be called after RunLoop(). If not, it causes panic.
 func (p *Pinger) Stop() {
 	p.debugln("Stop(): close(p.ctx.stop)")
 	close(p.ctx.stop)
@@ -211,6 +214,8 @@ func (p *Pinger) Stop() {
 	<-p.ctx.done
 }
 
+// Return an error that is set by RunLoop(). It must be called after RunLoop().
+// If not, it causes panic.
 func (p *Pinger) Err() error {
 	return p.ctx.err
 }
