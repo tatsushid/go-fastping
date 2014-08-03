@@ -67,6 +67,19 @@ type packet struct {
 	addr  *net.IPAddr
 }
 
+type context struct {
+	stop chan bool
+	done chan bool
+	err error
+}
+
+func newContext() *context {
+	return &context {
+		stop: make(chan bool),
+		done: make(chan bool),
+	}
+}
+
 // Pinger represents ICMP packet sender/receiver
 type Pinger struct {
 	id  int
@@ -209,10 +222,11 @@ func (p *Pinger) run(once bool) error {
 	defer conn.Close()
 
 	var join chan<- bool
-	recv, stoprecv, waitjoin := make(chan *packet), make(chan chan<- bool), make(chan bool)
+	recv := make(chan *packet)
+	recvCtx := newContext()
 
 	p.debugln("Run(): call recvICMP4()")
-	go p.recvICMP4(conn, recv, stoprecv)
+	go p.recvICMP4(conn, recv, recvCtx)
 
 	p.debugln("Run(): call sendICMP4()")
 	queue, err := p.sendICMP4(conn)
@@ -225,6 +239,10 @@ mainloop:
 		select {
 		case join = <-p.quit:
 			p.debugln("Run(): <-p.quit")
+			break mainloop
+		case <-recvCtx.done:
+			p.debugln("Run(): <-recvCtx.done")
+			err = recvCtx.err
 			break mainloop
 		case <-ticker.C:
 			if handler, ok := p.handlers["idle"]; ok && handler != nil {
@@ -246,10 +264,10 @@ mainloop:
 	p.running = false
 	ticker.Stop()
 
-	p.debugln("Run(): stoprecv <- waitjoin")
-	stoprecv <- waitjoin
-	p.debugln("Run(): <-waitjoin")
-	<-waitjoin
+	p.debugln("Run(): close(recvCtx.stop)")
+	close(recvCtx.stop)
+	p.debugln("Run(): <-recvCtx.done")
+	<-recvCtx.done
 	if !once {
 		p.debugln("Run(): join <- true")
 		join <- true
@@ -301,14 +319,14 @@ func (p *Pinger) sendICMP4(conn *net.IPConn) (map[string]*net.IPAddr, error) {
 	return queue, nil
 }
 
-func (p *Pinger) recvICMP4(conn *net.IPConn, recv chan<- *packet, stoprecv <-chan chan<- bool) {
+func (p *Pinger) recvICMP4(conn *net.IPConn, recv chan<- *packet, ctx *context) {
 	p.debugln("recvICMP4(): Start")
 	for {
 		select {
-		case join := <-stoprecv:
-			p.debugln("recvICMP4(): <-stoprecv")
-			p.debugln("recvICMP4(): join <- true")
-			join <- true
+		case <-ctx.stop:
+			p.debugln("recvICMP4(): <-ctx.stop")
+			close(ctx.done)
+			p.debugln("recvICMP4(): close(ctx.done)")
 			return
 		default:
 		}
@@ -325,6 +343,8 @@ func (p *Pinger) recvICMP4(conn *net.IPConn, recv chan<- *packet, stoprecv <-cha
 					continue
 				} else {
 					p.debugln("recvICMP4(): OpError happen", err)
+					ctx.err = err
+					close(ctx.done)
 					return
 				}
 			}
