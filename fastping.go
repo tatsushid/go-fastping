@@ -81,11 +81,11 @@ type packet struct {
 type context struct {
 	stop chan bool
 	done chan bool
-	err error
+	err  error
 }
 
 func newContext() *context {
-	return &context {
+	return &context{
 		stop: make(chan bool),
 		done: make(chan bool),
 	}
@@ -96,9 +96,9 @@ type Pinger struct {
 	id  int
 	seq int
 	// key string is IPAddr.String()
-	addrs   map[string]*net.IPAddr
-	ctx    *context
-	mu     sync.Mutex
+	addrs map[string]*net.IPAddr
+	ctx   *context
+	mu    sync.Mutex
 	// Number of (nano,milli)seconds of an idle timeout. Once it passed,
 	// the library calls an idle callback function. It is also used for an
 	// interval time of RunLoop() method
