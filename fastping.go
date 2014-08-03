@@ -86,7 +86,7 @@ type Pinger struct {
 	seq int
 	// key string is IPAddr.String()
 	addrs   map[string]*net.IPAddr
-	quit    chan chan<- bool
+	ctx    *context
 	running bool
 	// Number of (nano,milli)seconds of an idle timeout. Once it passed,
 	// the library calls an idle callback function. It is also used for an
@@ -169,7 +169,9 @@ func (p *Pinger) AddHandler(event string, handler interface{}) error {
 // an error value. It means it blocks until MaxRTT seconds passed. For the
 // purpose of sending/receiving packets over and over, use RunLoop().
 func (p *Pinger) Run() error {
-	return p.run(true)
+	p.ctx = newContext()
+	p.run(true)
+	return p.ctx.err
 }
 
 // Invode send/receive procedure repeatedly. It sends packets to all hosts which
@@ -194,34 +196,35 @@ func (p *Pinger) Run() error {
 //
 // For more detail, please see "cmd/ping/ping.go".
 func (p *Pinger) RunLoop() <-chan error {
-	p.quit = make(chan chan<- bool)
+	p.ctx = newContext()
 	errch := make(chan error)
 	go func(ch chan<- error) {
-		err := p.run(false)
-		if err != nil {
-			ch <- err
+		p.run(false)
+		if p.ctx.err != nil {
+			ch <- p.ctx.err
 		}
 	}(errch)
 	return errch
 }
 
 func (p *Pinger) Stop() {
-	if p.running {
-		wait := make(chan bool)
-		p.quit <- wait
-		<-wait
-	}
+	p.debugln("Stop(): close(p.ctx.stop)")
+	close(p.ctx.stop)
+	p.debugln("Stop(): <-p.ctx.done")
+	<-p.ctx.done
 }
 
-func (p *Pinger) run(once bool) error {
+func (p *Pinger) run(once bool) {
 	p.debugln("Run(): Start")
 	conn, err := net.ListenIP("ip4:icmp", &net.IPAddr{IP: net.IPv4zero})
 	if err != nil {
-		return err
+		p.ctx.err = err
+		p.debugln("Run(): close(p.ctx.done)")
+		close(p.ctx.done)
+		return
 	}
 	defer conn.Close()
 
-	var join chan<- bool
 	recv := make(chan *packet)
 	recvCtx := newContext()
 
@@ -232,13 +235,12 @@ func (p *Pinger) run(once bool) error {
 	queue, err := p.sendICMP4(conn)
 
 	ticker := time.NewTicker(p.MaxRTT)
-	p.running = true
 
 mainloop:
 	for {
 		select {
-		case join = <-p.quit:
-			p.debugln("Run(): <-p.quit")
+		case <-p.ctx.stop:
+			p.debugln("Run(): <-p.ctx.stop")
 			break mainloop
 		case <-recvCtx.done:
 			p.debugln("Run(): <-recvCtx.done")
@@ -261,19 +263,16 @@ mainloop:
 		}
 	}
 
-	p.running = false
 	ticker.Stop()
 
 	p.debugln("Run(): close(recvCtx.stop)")
 	close(recvCtx.stop)
 	p.debugln("Run(): <-recvCtx.done")
 	<-recvCtx.done
-	if !once {
-		p.debugln("Run(): join <- true")
-		join <- true
-	}
+	p.ctx.err = err
+	p.debugln("Run(): close(p.ctx.done)")
+	close(p.ctx.done)
 	p.debugln("Run(): End")
-	return err
 }
 
 func (p *Pinger) sendICMP4(conn *net.IPConn) (map[string]*net.IPAddr, error) {
