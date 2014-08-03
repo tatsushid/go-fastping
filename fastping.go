@@ -87,7 +87,6 @@ type Pinger struct {
 	// key string is IPAddr.String()
 	addrs   map[string]*net.IPAddr
 	ctx    *context
-	running bool
 	// Number of (nano,milli)seconds of an idle timeout. Once it passed,
 	// the library calls an idle callback function. It is also used for an
 	// interval time of RunLoop() method
@@ -104,7 +103,6 @@ func NewPinger() *Pinger {
 		id:       rand.Intn(0xffff),
 		seq:      rand.Intn(0xffff),
 		addrs:    make(map[string]*net.IPAddr),
-		running:  false,
 		MaxRTT:   time.Second,
 		handlers: make(map[string]interface{}),
 		Debug:    false,
@@ -180,14 +178,16 @@ func (p *Pinger) Run() error {
 // After MaxRTT seconds, it calls "idle" handler, resend packets and wait those
 // response. MaxRTT works as an interval time.
 //
-// This is a non-blocking method so immediately returns with channel value.
-// If you want to stop sending packets, use Stop(). For example,
+// This is a non-blocking method so immediately returns. If you want to monitor
+// and stop sending packets, use Done() and Stop() method. For example,
 //
-//	errch := p.RunLoop()
+//	p.RunLoop()
 //	ticker := time.NewTicker(time.Millisecond * 250)
 //	select {
-//	case err := <-errch:
-//		log.Fatalf("Ping failed: %v", err)
+//	case <-p.Done():
+//		if err := p.Err(); err != nil {
+//			log.Fatalf("Ping failed: %v", err)
+//		}
 //	case <-ticker.C:
 //		break
 //	}
@@ -195,16 +195,13 @@ func (p *Pinger) Run() error {
 //	p.Stop()
 //
 // For more detail, please see "cmd/ping/ping.go".
-func (p *Pinger) RunLoop() <-chan error {
+func (p *Pinger) RunLoop() {
 	p.ctx = newContext()
-	errch := make(chan error)
-	go func(ch chan<- error) {
-		p.run(false)
-		if p.ctx.err != nil {
-			ch <- p.ctx.err
-		}
-	}(errch)
-	return errch
+	go p.run(false)
+}
+
+func (p *Pinger) Done() <-chan bool {
+	return p.ctx.done
 }
 
 func (p *Pinger) Stop() {
@@ -212,6 +209,10 @@ func (p *Pinger) Stop() {
 	close(p.ctx.stop)
 	p.debugln("Stop(): <-p.ctx.done")
 	<-p.ctx.done
+}
+
+func (p *Pinger) Err() error {
+	return p.ctx.err
 }
 
 func (p *Pinger) run(once bool) {

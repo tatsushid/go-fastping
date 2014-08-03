@@ -199,11 +199,13 @@ func TestRunLoop(t *testing.T) {
 		t.Fatalf("Failed to add idle handler: %v", err)
 	}
 
-	errch := p.RunLoop()
+	p.RunLoop()
 	ticker := time.NewTicker(time.Millisecond * 250)
 	select {
-	case err := <-errch:
-		t.Fatalf("Pinger returns error %v", err)
+	case <-p.Done():
+		if err = p.Err(); err != nil {
+			t.Fatalf("Pinger returns error %v", err)
+		}
 	case <-ticker.C:
 		break
 	}

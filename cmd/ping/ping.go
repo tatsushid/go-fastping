@@ -40,7 +40,7 @@ func main() {
 	})
 
 	p.MaxRTT = time.Second
-	errch := p.RunLoop()
+	p.RunLoop()
 
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt)
@@ -65,8 +65,10 @@ loop:
 				}
 				results[host] = nil
 			}
-		case err := <-errch:
-			fmt.Println("Ping failed: %v", err)
+		case <-p.Done():
+			if err = p.Err(); err != nil {
+				fmt.Println("Ping failed:", err)
+			}
 			break loop
 		}
 	}
