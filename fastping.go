@@ -188,7 +188,7 @@ func (p *Pinger) AddHandler(event string, handler interface{}) error {
 			p.mu.Unlock()
 			return nil
 		}
-		return errors.New("Receive event handler should be `func(*net.IPAddr, time.Duration)`")
+		return errors.New("receive event handler should be `func(*net.IPAddr, time.Duration)`")
 	case "idle":
 		if hdl, ok := handler.(func()); ok {
 			p.mu.Lock()
@@ -196,7 +196,7 @@ func (p *Pinger) AddHandler(event string, handler interface{}) error {
 			p.mu.Unlock()
 			return nil
 		}
-		return errors.New("Idle event handler should be `func()`")
+		return errors.New("idle event handler should be `func()`")
 	}
 	return errors.New("No such event: " + event)
 }
