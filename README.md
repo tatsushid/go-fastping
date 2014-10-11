@@ -6,7 +6,7 @@ Perl module to send ICMP ECHO REQUEST packets quickly. Original Perl module is
 available at
 http://search.cpan.org/~mlehmann/AnyEvent-FastPing-2.01/
 
-It hasn't been fully implemented original functions yet and only for IPv4 now.
+It hasn't been fully implemented original functions yet.
 
 [![GoDoc](https://godoc.org/github.com/tatsushid/go-fastping?status.svg)](https://godoc.org/github.com/tatsushid/go-fastping)
 
