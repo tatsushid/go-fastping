@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 )
@@ -21,7 +22,12 @@ func main() {
 		os.Exit(1)
 	}
 	p := fastping.NewPinger()
-	ra, err := net.ResolveIPAddr("ip4:icmp", os.Args[1])
+
+	netProto := "ip4:icmp"
+	if strings.Index(os.Args[1], ":") != -1 {
+		netProto = "ip6:ipv6-icmp"
+	}
+	ra, err := net.ResolveIPAddr(netProto, os.Args[1])
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)

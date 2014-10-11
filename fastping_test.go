@@ -48,7 +48,11 @@ func TestRun(t *testing.T) {
 		t.Fatalf("AddIP failed: %v", err)
 	}
 
-	found1, found100 := false, false
+	if err := p.AddIP("::1"); err != nil {
+		t.Fatalf("AddIP failed: %v", err)
+	}
+
+	found1, found100, foundv6 := false, false, false
 	called, idle := false, false
 	err := p.AddHandler("receive", func(ip *net.IPAddr, d time.Duration) {
 		called = true
@@ -56,6 +60,8 @@ func TestRun(t *testing.T) {
 			found1 = true
 		} else if ip.String() == "127.0.0.100" {
 			found100 = true
+		} else if ip.String() == "::1" {
+			foundv6 = true
 		}
 	})
 	if err != nil {
@@ -84,6 +90,9 @@ func TestRun(t *testing.T) {
 	}
 	if found100 {
 		t.Fatalf("Pinger `127.0.0.100` responded")
+	}
+	if !foundv6 {
+		t.Fatalf("Pinger `::1` didn't responded")
 	}
 }
 
