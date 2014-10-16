@@ -14,19 +14,11 @@
 //		os.Exit(1)
 //	}
 //	p.AddIPAddr(ra)
-//	err = p.AddHandler("receive", func(addr *net.IPAddr, rtt time.Duration) {
+//	p.OnRecv = func(addr *net.IPAddr, rtt time.Duration) {
 //		fmt.Printf("IP Addr: %s receive, RTT: %v\n", addr.String(), rtt)
-//	})
-//	if err != nil {
-//		fmt.Println(err)
-//		os.Exit(1)
 //	}
-//	err = p.AddHandler("idle", func() {
+//	p.OnIdle = func() {
 //		fmt.Println("finish")
-//	})
-//	if err != nil {
-//		fmt.Println(err)
-//		os.Exit(1)
 //	}
 //	err = p.Run()
 //	if err != nil {
@@ -111,8 +103,12 @@ type Pinger struct {
 	// Number of (nano,milli)seconds of an idle timeout. Once it passed,
 	// the library calls an idle callback function. It is also used for an
 	// interval time of RunLoop() method
-	MaxRTT   time.Duration
-	handlers map[string]interface{}
+	MaxRTT time.Duration
+	// OnRecv is called with a response packet's source address and its
+	// elapsed time when Pinger receives a response packet.
+	OnRecv func(*net.IPAddr, time.Duration)
+	// OnIdle is called when MaxRTT time passed
+	OnIdle func()
 	// If Debug is true, it prints debug messages to stdout.
 	Debug bool
 }
@@ -121,14 +117,15 @@ type Pinger struct {
 func NewPinger() *Pinger {
 	rand.Seed(time.Now().UnixNano())
 	return &Pinger{
-		id:       rand.Intn(0xffff),
-		seq:      rand.Intn(0xffff),
-		addrs:    make(map[string]*net.IPAddr),
-		hasIPv4:  false,
-		hasIPv6:  false,
-		MaxRTT:   time.Second,
-		handlers: make(map[string]interface{}),
-		Debug:    false,
+		id:      rand.Intn(0xffff),
+		seq:     rand.Intn(0xffff),
+		addrs:   make(map[string]*net.IPAddr),
+		hasIPv4: false,
+		hasIPv6: false,
+		MaxRTT:  time.Second,
+		OnRecv:  nil,
+		OnIdle:  nil,
+		Debug:   false,
 	}
 }
 
@@ -166,6 +163,9 @@ func (p *Pinger) AddIPAddr(ip *net.IPAddr) {
 // AddHandler adds event handler to Pinger. event arg should be "receive" or
 // "idle" string.
 //
+// **CAUTION** This function is deprecated. Please use OnRecv and OnIdle field
+// of Pinger struct to set following handlers.
+//
 // "receive" handler should be
 //
 //	func(addr *net.IPAddr, rtt time.Duration)
@@ -184,7 +184,7 @@ func (p *Pinger) AddHandler(event string, handler interface{}) error {
 	case "receive":
 		if hdl, ok := handler.(func(*net.IPAddr, time.Duration)); ok {
 			p.mu.Lock()
-			p.handlers[event] = hdl
+			p.OnRecv = hdl
 			p.mu.Unlock()
 			return nil
 		}
@@ -192,7 +192,7 @@ func (p *Pinger) AddHandler(event string, handler interface{}) error {
 	case "idle":
 		if hdl, ok := handler.(func()); ok {
 			p.mu.Lock()
-			p.handlers[event] = hdl
+			p.OnIdle = hdl
 			p.mu.Unlock()
 			return nil
 		}
@@ -333,12 +333,10 @@ mainloop:
 			break mainloop
 		case <-ticker.C:
 			p.mu.Lock()
-			handler, ok := p.handlers["idle"]
+			handler := p.OnIdle
 			p.mu.Unlock()
-			if ok && handler != nil {
-				if hdl, ok := handler.(func()); ok {
-					hdl()
-				}
+			if handler != nil {
+				handler()
 			}
 			if once || err != nil {
 				break mainloop
@@ -512,12 +510,10 @@ func (p *Pinger) procRecv(recv *packet, queue map[string]*net.IPAddr) {
 	if _, ok := queue[addr]; ok {
 		delete(queue, addr)
 		p.mu.Lock()
-		handler, ok := p.handlers["receive"]
+		handler := p.OnRecv
 		p.mu.Unlock()
-		if ok && handler != nil {
-			if hdl, ok := handler.(func(*net.IPAddr, time.Duration)); ok {
-				hdl(recv.addr, rtt)
-			}
+		if handler != nil {
+			handler(recv.addr, rtt)
 		}
 	}
 }
