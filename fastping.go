@@ -47,12 +47,9 @@ import (
 	"time"
 )
 
-const TimeSliceLengh = 8
+const TimeSliceLength = 8
 
 func byteSliceOfSize(n int) []byte {
-	if n == 0 {
-		n = TimeSliceLengh // if its 0 .. default it to 8
-	}
 	b := make([]byte, n)
 	for i := 0; i < len(b); i++ {
 		b[i] = 1
@@ -139,7 +136,7 @@ func NewPinger() *Pinger {
 		addrs:   make(map[string]*net.IPAddr),
 		hasIPv4: false,
 		hasIPv6: false,
-		Size:    TimeSliceLengh,
+		Size:    TimeSliceLength,
 		MaxRTT:  time.Second,
 		OnRecv:  nil,
 		OnIdle:  nil,
@@ -409,12 +406,16 @@ func (p *Pinger) sendICMP(conn, conn6 *net.IPConn) (map[string]*net.IPAddr, erro
 
 		t := timeToBytes(time.Now())
 
+		if p.Size-TimeSliceLength != 0 {
+			t = append(t, byteSliceOfSize(p.Size-TimeSliceLength)...)
+		}
+
 		p.mu.Lock()
 		bytes, err := (&icmpMessage{
 			Type: typ, Code: 0,
 			Body: &icmpEcho{
 				ID: p.id, Seq: p.seq,
-				Data: append(t, byteSliceOfSize(p.Size-TimeSliceLengh)...),
+				Data: t,
 			},
 		}).Marshal()
 		p.mu.Unlock()
@@ -520,7 +521,7 @@ func (p *Pinger) procRecv(recv *packet, queue map[string]*net.IPAddr) {
 	case *icmpEcho:
 		p.mu.Lock()
 		if pkt.ID == p.id && pkt.Seq == p.seq {
-			rtt = time.Since(bytesToTime(pkt.Data[:TimeSliceLengh]))
+			rtt = time.Since(bytesToTime(pkt.Data[:TimeSliceLength]))
 		}
 		p.mu.Unlock()
 	default:
