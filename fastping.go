@@ -315,7 +315,7 @@ func (p *Pinger) run(once bool) {
 		defer conn6.Close()
 	}
 
-	recv := make(chan *packet)
+	recv := make(chan *packet, 1)
 	recvCtx := newContext()
 	wg := new(sync.WaitGroup)
 
