@@ -1,14 +1,16 @@
 package main
 
 import (
+	"flag"
 	"fmt"
-	"github.com/tatsushid/go-fastping"
 	"net"
 	"os"
 	"os/signal"
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/tatsushid/go-fastping"
 )
 
 type response struct {
@@ -17,17 +19,31 @@ type response struct {
 }
 
 func main() {
-	if len(os.Args) != 2 {
-		fmt.Fprintf(os.Stderr, "Usage: %s {hostname}\n", os.Args[0])
+	var useUDP bool
+	flag.BoolVar(&useUDP, "udp", false, "use non-privileged datagram-oriented UDP as ICMP endpoints")
+	flag.BoolVar(&useUDP, "u", false, "use non-privileged datagram-oriented UDP as ICMP endpoints (shorthand)")
+	flag.Usage = func() {
+		fmt.Fprintf(os.Stderr, "Usage:\n  %s [options] hostname\n\nOptions:\n", os.Args[0])
+		flag.PrintDefaults()
+	}
+	flag.Parse()
+
+	hostname := flag.Arg(0)
+	if len(hostname) == 0 {
+		flag.Usage()
 		os.Exit(1)
 	}
+
 	p := fastping.NewPinger()
+	if useUDP {
+		p.Network("udp")
+	}
 
 	netProto := "ip4:icmp"
-	if strings.Index(os.Args[1], ":") != -1 {
+	if strings.Index(hostname, ":") != -1 {
 		netProto = "ip6:ipv6-icmp"
 	}
-	ra, err := net.ResolveIPAddr(netProto, os.Args[1])
+	ra, err := net.ResolveIPAddr(netProto, hostname)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
