@@ -47,6 +47,10 @@ func TestRemoveIP(t *testing.T) {
 		t.Fatalf("AddIP length check failed")
 	}
 
+	if err := p.RemoveIP("127.0"); err == nil {
+		t.Fatal("RemoveIP, invalid IP should fail")
+	}
+
 	if err := p.RemoveIP("127.0.0.1"); err != nil {
 		t.Fatalf("RemoveIP failed: %v", err)
 	}
