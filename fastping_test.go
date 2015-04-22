@@ -37,6 +37,37 @@ func TestAddIP(t *testing.T) {
 	}
 }
 
+func TestRemoveIP(t *testing.T) {
+	p := NewPinger()
+
+	if err := p.AddIP("127.0.0.1"); err != nil {
+		t.Fatalf("AddIP failed: %v", err)
+	}
+
+	if err := p.RemoveIP("127.0.0.1"); err != nil {
+		t.Fatalf("RemoveIP failed: %v", err)
+	}
+
+	length := len(p.addrs)
+	if length != 0 {
+		t.Fatalf("RemoveIP failed: got %v, expected %v", length, 0)
+	}
+}
+
+func TestRemoveIPAddr(t *testing.T) {
+	p := NewPinger()
+
+	if err := p.AddIP("127.0.0.1"); err != nil {
+		t.Fatalf("AddIP failed: %v", err)
+	}
+
+	p.RemoveIPAddr(&net.IPAddr{IP: net.IPv4(127, 0, 0, 1)})
+	length := len(p.addrs)
+	if length != 0 {
+		t.Fatalf("RemoveIP failed: got %v, expected %v", length, 0)
+	}
+}
+
 func TestRun(t *testing.T) {
 	for _, network := range []string{"ip", "udp"} {
 		p := NewPinger()
