@@ -23,7 +23,7 @@ func main() {
 	flag.BoolVar(&useUDP, "udp", false, "use non-privileged datagram-oriented UDP as ICMP endpoints")
 	flag.BoolVar(&useUDP, "u", false, "use non-privileged datagram-oriented UDP as ICMP endpoints (shorthand)")
 	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "Usage:\n  %s [options] hostname\n\nOptions:\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "Usage:\n  %s [options] hostname [source]\n\nOptions:\n", os.Args[0])
 		flag.PrintDefaults()
 	}
 	flag.Parse()
@@ -32,6 +32,11 @@ func main() {
 	if len(hostname) == 0 {
 		flag.Usage()
 		os.Exit(1)
+	}
+
+	source := ""
+	if flag.NArg() > 1 {
+		source = flag.Arg(1)
 	}
 
 	p := fastping.NewPinger()
@@ -47,6 +52,10 @@ func main() {
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
+	}
+
+	if source != "" {
+		p.Source(source)
 	}
 
 	results := make(map[string]*response)
