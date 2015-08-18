@@ -353,6 +353,27 @@ func TestErr(t *testing.T) {
 	}
 }
 
+func TestListen(t *testing.T) {
+	noSource := ""
+	invalidSource := "192.0.2"
+
+	p := NewPinger()
+	p.ctx = newContext()
+
+	conn := p.listen("ip4:icmp", noSource)
+	if conn == nil {
+		t.Errorf("listen failed: %v", p.Err())
+	} else {
+		conn.Close()
+	}
+
+	conn = p.listen("ip4:icmp", invalidSource)
+	if conn != nil {
+		t.Errorf("listen should return nothing but something: %v", conn)
+		conn.Close()
+	}
+}
+
 func TestTimeToBytes(t *testing.T) {
 	// 2009-11-10 23:00:00 +0000 UTC = 1257894000000000000
 	expect := []byte{0x11, 0x74, 0xef, 0xed, 0xab, 0x18, 0x60, 0x00}
