@@ -18,6 +18,62 @@ var addHostTests = []addHostTest{
 	{host: "localhost", addr: &net.IPAddr{IP: net.IPv4(127, 0, 0, 1)}, expect: false},
 }
 
+func TestSource(t *testing.T) {
+	for i, tt := range []struct {
+		firstAddr  string
+		secondAddr string
+		invalid    bool
+	}{
+		{firstAddr: "192.0.2.10", secondAddr: "192.0.2.20", invalid: false},
+		{firstAddr: "2001:0DB8::10", secondAddr: "2001:0DB8::20", invalid: false},
+		{firstAddr: "192.0.2", invalid: true},
+	} {
+		p := NewPinger()
+
+		origSource, err := p.Source(tt.firstAddr)
+		if tt.invalid {
+			if err == nil {
+				t.Errorf("[%d] Source should return an error but nothing: %v", i)
+			}
+			continue
+		}
+		if err != nil {
+			t.Errorf("[%d] Source address failed: %v", i, err)
+		}
+		if origSource != "" {
+			t.Errorf("[%d] Source returned an unexpected value: got %q, expected %q", i, origSource, "")
+		}
+
+		origSource, err = p.Source(tt.secondAddr)
+		if err != nil {
+			t.Errorf("[%d] Source address failed: %v", i, err)
+		}
+		if origSource != tt.firstAddr {
+			t.Errorf("[%d] Source returned an unexpected value: got %q, expected %q", i, origSource, tt.firstAddr)
+		}
+	}
+
+	v4Addr := "192.0.2.10"
+	v6Addr := "2001:0DB8::10"
+
+	p := NewPinger()
+	_, err := p.Source(v4Addr)
+	if err != nil {
+		t.Errorf("Source address failed: %v", err)
+	}
+	_, err = p.Source(v6Addr)
+	if err != nil {
+		t.Errorf("Source address failed: %v", err)
+	}
+	origSource, err := p.Source("")
+	if err != nil {
+		t.Errorf("Source address failed: %v", err)
+	}
+	if origSource != v4Addr {
+		t.Errorf("Source returned an unexpected value: got %q, expected %q", origSource, v4Addr)
+	}
+}
+
 func TestAddIP(t *testing.T) {
 	p := NewPinger()
 
