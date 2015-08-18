@@ -341,6 +341,18 @@ func TestRunLoop(t *testing.T) {
 	}
 }
 
+func TestErr(t *testing.T) {
+	invalidSource := "192.0.2"
+
+	p := NewPinger()
+	p.ctx = newContext()
+
+	_ = p.listen("ip4:icmp", invalidSource)
+	if p.Err() == nil {
+		t.Errorf("Err should return an error but nothing")
+	}
+}
+
 func TestTimeToBytes(t *testing.T) {
 	// 2009-11-10 23:00:00 +0000 UTC = 1257894000000000000
 	expect := []byte{0x11, 0x74, 0xef, 0xed, 0xab, 0x18, 0x60, 0x00}
