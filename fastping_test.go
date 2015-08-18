@@ -7,17 +7,6 @@ import (
 	"time"
 )
 
-type addHostTest struct {
-	host   string
-	addr   *net.IPAddr
-	expect bool
-}
-
-var addHostTests = []addHostTest{
-	{host: "127.0.0.1", addr: &net.IPAddr{IP: net.IPv4(127, 0, 0, 1)}, expect: true},
-	{host: "localhost", addr: &net.IPAddr{IP: net.IPv4(127, 0, 0, 1)}, expect: false},
-}
-
 func TestSource(t *testing.T) {
 	for i, tt := range []struct {
 		firstAddr  string
@@ -75,16 +64,25 @@ func TestSource(t *testing.T) {
 }
 
 func TestAddIP(t *testing.T) {
+	addIPTests := []struct {
+		host   string
+		addr   *net.IPAddr
+		expect bool
+	}{
+		{host: "127.0.0.1", addr: &net.IPAddr{IP: net.IPv4(127, 0, 0, 1)}, expect: true},
+		{host: "localhost", addr: &net.IPAddr{IP: net.IPv4(127, 0, 0, 1)}, expect: false},
+	}
+
 	p := NewPinger()
 
-	for _, tt := range addHostTests {
+	for _, tt := range addIPTests {
 		if ok := p.AddIP(tt.host); ok != nil {
 			if tt.expect != false {
 				t.Errorf("AddIP failed: got %v, expected %v", ok, tt.expect)
 			}
 		}
 	}
-	for _, tt := range addHostTests {
+	for _, tt := range addIPTests {
 		if tt.expect {
 			if !p.addrs[tt.host].IP.Equal(tt.addr.IP) {
 				t.Errorf("AddIP didn't save IPAddr: %v", tt.host)
