@@ -91,6 +91,33 @@ func TestAddIP(t *testing.T) {
 	}
 }
 
+func TestAddIPAddr(t *testing.T) {
+	addIPAddrTests := []*net.IPAddr{
+		{IP: net.IPv4(192, 0, 2, 10)},
+		{IP: net.IP{0x20, 0x01, 0x0D, 0xB8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x10}},
+	}
+
+	p := NewPinger()
+
+	for i, tt := range addIPAddrTests {
+		p.AddIPAddr(tt)
+		if !p.addrs[tt.String()].IP.Equal(tt.IP) {
+			t.Errorf("[%d] AddIPAddr didn't save IPAddr: %v", i, tt.IP)
+		}
+		if len(tt.IP.To4()) == net.IPv4len {
+			if p.hasIPv4 != true {
+				t.Errorf("[%d] AddIPAddr didn't save IPAddr type: got %v, expected %v", i, p.hasIPv4, true)
+			}
+		} else if len(tt.IP) == net.IPv6len {
+			if p.hasIPv6 != true {
+				t.Errorf("[%d] AddIPAddr didn't save IPAddr type: got %v, expected %v", i, p.hasIPv6, true)
+			}
+		} else {
+			t.Errorf("[%d] AddIPAddr encounted an unexpected error", i)
+		}
+	}
+}
+
 func TestRemoveIP(t *testing.T) {
 	p := NewPinger()
 
