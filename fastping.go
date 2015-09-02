@@ -43,6 +43,7 @@ import (
 	"log"
 	"math/rand"
 	"net"
+	"runtime"
 	"sync"
 	"syscall"
 	"time"
@@ -103,6 +104,10 @@ func ipv4Payload(b []byte) []byte {
 	}
 	hdrlen := int(b[0]&0x0f) << 2
 	return b[hdrlen:]
+}
+
+func numGoRoutines() int {
+	return runtime.GOMAXPROCS(0) * 4
 }
 
 type packet struct {
