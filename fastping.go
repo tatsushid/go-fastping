@@ -145,7 +145,7 @@ type Pinger struct {
 	MaxRTT time.Duration
 	// OnRecv is called with a response packet's source address and its
 	// elapsed time when Pinger receives a response packet.
-	OnRecv func(*net.IPAddr, time.Duration)
+	OnRecv func(*net.IPAddr, time.Duration, []uint8)
 	// OnIdle is called when MaxRTT time passed
 	OnIdle func()
 	// If Debug is true, it prints debug messages to stdout.
@@ -297,7 +297,7 @@ func (p *Pinger) RemoveIPAddr(ip *net.IPAddr) {
 func (p *Pinger) AddHandler(event string, handler interface{}) error {
 	switch event {
 	case "receive":
-		if hdl, ok := handler.(func(*net.IPAddr, time.Duration)); ok {
+		if hdl, ok := handler.(func(*net.IPAddr, time.Duration, []uint8)); ok {
 			p.mu.Lock()
 			p.OnRecv = hdl
 			p.mu.Unlock()
@@ -646,11 +646,13 @@ func (p *Pinger) procRecv(recv *packet, queue map[string]*net.IPAddr) {
 	}
 
 	var rtt time.Duration
+	var payload []uint8
 	switch pkt := m.Body.(type) {
 	case *icmp.Echo:
 		p.mu.Lock()
 		if pkt.ID == p.id && pkt.Seq == p.seq {
 			rtt = time.Since(bytesToTime(pkt.Data[:TimeSliceLength]))
+			payload = pkt.Data
 		}
 		p.mu.Unlock()
 	default:
@@ -663,7 +665,7 @@ func (p *Pinger) procRecv(recv *packet, queue map[string]*net.IPAddr) {
 		handler := p.OnRecv
 		p.mu.Unlock()
 		if handler != nil {
-			handler(ipaddr, rtt)
+			handler(ipaddr, rtt, payload)
 		}
 	}
 }
