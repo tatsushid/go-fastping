@@ -110,11 +110,6 @@ func numGoRoutines() int {
 	return runtime.NumCPU() * 4
 }
 
-type packet struct {
-	bytes []byte
-	addr  net.Addr
-}
-
 type context struct {
 	stop chan bool
 	done chan bool
@@ -642,13 +637,13 @@ func (p *Pinger) recvICMP(conn *icmp.PacketConn, ctx *context, wg *sync.WaitGrou
 				}
 			}
 		}
-		p.procRecv(&packet{bytes: bytes, addr: ra})
+		p.procRecv(bytes, ra)
 	}
 }
 
-func (p *Pinger) procRecv(recv *packet) {
+func (p *Pinger) procRecv(bytes []byte, ra net.Addr) {
 	var ipaddr *net.IPAddr
-	switch adr := recv.addr.(type) {
+	switch adr := ra.(type) {
 	case *net.IPAddr:
 		ipaddr = adr
 	case *net.UDPAddr:
@@ -665,17 +660,13 @@ func (p *Pinger) procRecv(recv *packet) {
 	}
 	p.mu.Unlock()
 
-	var bytes []byte
 	var proto int
 	if isIPv4(ipaddr.IP) {
 		if p.network == "ip" {
-			bytes = ipv4Payload(recv.bytes)
-		} else {
-			bytes = recv.bytes
+			bytes = ipv4Payload(bytes)
 		}
 		proto = ProtocolICMP
 	} else if isIPv6(ipaddr.IP) {
-		bytes = recv.bytes
 		proto = ProtocolIPv6ICMP
 	} else {
 		return
