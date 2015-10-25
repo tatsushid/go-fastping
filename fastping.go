@@ -134,6 +134,7 @@ type Pinger struct {
 	seq int
 	// key string is IPAddr.String()
 	addrs   map[string]*net.IPAddr
+	sent    map[string]*net.IPAddr
 	network string
 	source  string
 	source6 string
@@ -442,7 +443,7 @@ func (p *Pinger) run(once bool) {
 	}
 
 	p.debugln("Run(): call sendICMP()")
-	queue, err := p.sendICMP(conn, conn6)
+	err := p.sendICMP(conn, conn6)
 
 	ticker := time.NewTicker(p.MaxRTT)
 
@@ -469,10 +470,10 @@ mainloop:
 				break mainloop
 			}
 			p.debugln("Run(): call sendICMP()")
-			queue, err = p.sendICMP(conn, conn6)
+			err = p.sendICMP(conn, conn6)
 		case r := <-recv:
 			p.debugln("Run(): <-recv")
-			p.procRecv(r, queue)
+			p.procRecv(r)
 		}
 	}
 
@@ -487,7 +488,7 @@ mainloop:
 	close(recv)
 	for r := range recv {
 		p.debugln("Run(): <-recv")
-		p.procRecv(r, queue)
+		p.procRecv(r)
 	}
 
 	p.mu.Lock()
@@ -499,7 +500,7 @@ mainloop:
 	p.debugln("Run(): End")
 }
 
-func (p *Pinger) sendICMP(conn, conn6 *icmp.PacketConn) (map[string]*net.IPAddr, error) {
+func (p *Pinger) sendICMP(conn, conn6 *icmp.PacketConn) error {
 	type sendResult struct {
 		addr *net.IPAddr
 		err  error
@@ -510,9 +511,8 @@ func (p *Pinger) sendICMP(conn, conn6 *icmp.PacketConn) (map[string]*net.IPAddr,
 	p.mu.Lock()
 	p.id = rand.Intn(0xffff)
 	p.seq = rand.Intn(0xffff)
+	p.sent = make(map[string]*net.IPAddr)
 	p.mu.Unlock()
-
-	queue := make(map[string]*net.IPAddr)
 
 	addrs := make(chan *net.IPAddr)
 	results := make(chan sendResult, 1)
@@ -524,7 +524,9 @@ func (p *Pinger) sendICMP(conn, conn6 *icmp.PacketConn) (map[string]*net.IPAddr,
 			if r.err != nil {
 				errs = append(errs, r.err)
 			} else {
-				queue[r.addr.String()] = r.addr
+				p.mu.Lock()
+				p.sent[r.addr.String()] = r.addr
+				p.mu.Unlock()
 			}
 		}
 		errors <- errs
@@ -611,9 +613,9 @@ func (p *Pinger) sendICMP(conn, conn6 *icmp.PacketConn) (map[string]*net.IPAddr,
 
 	p.debugln("sendICMP(): End")
 	if len(errs) > 0 {
-		return queue, errs[0]
+		return errs[0]
 	}
-	return queue, nil
+	return nil
 }
 
 func (p *Pinger) recvICMP(conn *icmp.PacketConn, recv chan<- *packet, ctx *context, wg *sync.WaitGroup) {
@@ -664,7 +666,7 @@ func (p *Pinger) recvICMP(conn *icmp.PacketConn, recv chan<- *packet, ctx *conte
 	}
 }
 
-func (p *Pinger) procRecv(recv *packet, queue map[string]*net.IPAddr) {
+func (p *Pinger) procRecv(recv *packet) {
 	var ipaddr *net.IPAddr
 	switch adr := recv.addr.(type) {
 	case *net.IPAddr:
@@ -721,14 +723,16 @@ func (p *Pinger) procRecv(recv *packet, queue map[string]*net.IPAddr) {
 		return
 	}
 
-	if _, ok := queue[addr]; ok {
-		delete(queue, addr)
-		p.mu.Lock()
+	p.mu.Lock()
+	if _, ok := p.sent[addr]; ok {
+		delete(p.sent, addr)
 		handler := p.OnRecv
 		p.mu.Unlock()
 		if handler != nil {
 			handler(ipaddr, rtt)
 		}
+	} else {
+		p.mu.Unlock()
 	}
 }
 
