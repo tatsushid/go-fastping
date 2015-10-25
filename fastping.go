@@ -106,10 +106,6 @@ func ipv4Payload(b []byte) []byte {
 	return b[hdrlen:]
 }
 
-func numGoRoutines() int {
-	return runtime.NumCPU() * 4
-}
-
 type context struct {
 	stop chan bool
 	done chan bool
@@ -149,6 +145,10 @@ type Pinger struct {
 	OnRecv func(*net.IPAddr, time.Duration)
 	// OnIdle is called when MaxRTT time passed
 	OnIdle func()
+	// NumGoroutines defines how many goroutines are used when sending ICMP
+	// packets and receiving IPv4/IPv6 ICMP responses. Its default is
+	// runtime.NumCPU().
+	NumGoroutines int
 	// If Debug is true, it prints debug messages to stdout.
 	Debug bool
 }
@@ -157,19 +157,20 @@ type Pinger struct {
 func NewPinger() *Pinger {
 	rand.Seed(time.Now().UnixNano())
 	return &Pinger{
-		id:      rand.Intn(0xffff),
-		seq:     rand.Intn(0xffff),
-		addrs:   make(map[string]*net.IPAddr),
-		network: "ip",
-		source:  "",
-		source6: "",
-		hasIPv4: false,
-		hasIPv6: false,
-		Size:    TimeSliceLength,
-		MaxRTT:  time.Second,
-		OnRecv:  nil,
-		OnIdle:  nil,
-		Debug:   false,
+		id:            rand.Intn(0xffff),
+		seq:           rand.Intn(0xffff),
+		addrs:         make(map[string]*net.IPAddr),
+		network:       "ip",
+		source:        "",
+		source6:       "",
+		hasIPv4:       false,
+		hasIPv6:       false,
+		Size:          TimeSliceLength,
+		MaxRTT:        time.Second,
+		OnRecv:        nil,
+		OnIdle:        nil,
+		NumGoroutines: runtime.NumCPU(),
+		Debug:         false,
 	}
 }
 
@@ -421,7 +422,9 @@ func (p *Pinger) run(once bool) {
 
 	p.debugln("Run(): call recvICMP()")
 	if conn != nil {
-		routines := runtime.NumCPU()
+		p.mu.Lock()
+		routines := p.NumGoroutines
+		p.mu.Unlock()
 		wg.Add(routines)
 		for i := 0; i < routines; i++ {
 			go p.recvICMP(conn, recvCtx, wg)
@@ -429,7 +432,9 @@ func (p *Pinger) run(once bool) {
 	}
 
 	if conn6 != nil {
-		routines := runtime.NumCPU()
+		p.mu.Lock()
+		routines := p.NumGoroutines
+		p.mu.Unlock()
 		wg.Add(routines)
 		for i := 0; i < routines; i++ {
 			go p.recvICMP(conn6, recvCtx, wg)
@@ -580,7 +585,9 @@ func (p *Pinger) sendICMP(conn, conn6 *icmp.PacketConn) error {
 		p.debugln("sendICMP(): End sender goroutine")
 	}
 
-	routines := numGoRoutines()
+	p.mu.Lock()
+	routines := p.NumGoroutines
+	p.mu.Unlock()
 	wg.Add(routines)
 	for i := 0; i < routines; i++ {
 		go sendPacket(addrs, results)
