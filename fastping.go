@@ -421,7 +421,6 @@ func (p *Pinger) run(once bool) {
 		defer conn6.Close()
 	}
 
-	recv := make(chan *packet, len(p.addrs))
 	recvCtx := newContext()
 	wg := new(sync.WaitGroup)
 
@@ -430,7 +429,7 @@ func (p *Pinger) run(once bool) {
 		routines := runtime.NumCPU()
 		wg.Add(routines)
 		for i := 0; i < routines; i++ {
-			go p.recvICMP(conn, recv, recvCtx, wg)
+			go p.recvICMP(conn, recvCtx, wg)
 		}
 	}
 
@@ -438,7 +437,7 @@ func (p *Pinger) run(once bool) {
 		routines := runtime.NumCPU()
 		wg.Add(routines)
 		for i := 0; i < routines; i++ {
-			go p.recvICMP(conn6, recv, recvCtx, wg)
+			go p.recvICMP(conn6, recvCtx, wg)
 		}
 	}
 
@@ -471,9 +470,6 @@ mainloop:
 			}
 			p.debugln("Run(): call sendICMP()")
 			err = p.sendICMP(conn, conn6)
-		case r := <-recv:
-			p.debugln("Run(): <-recv")
-			p.procRecv(r)
 		}
 	}
 
@@ -483,13 +479,6 @@ mainloop:
 	close(recvCtx.stop)
 	p.debugln("Run(): wait recvICMP()")
 	wg.Wait()
-
-	// process all queued results
-	close(recv)
-	for r := range recv {
-		p.debugln("Run(): <-recv")
-		p.procRecv(r)
-	}
 
 	p.mu.Lock()
 	p.ctx.err = err
@@ -618,7 +607,7 @@ func (p *Pinger) sendICMP(conn, conn6 *icmp.PacketConn) error {
 	return nil
 }
 
-func (p *Pinger) recvICMP(conn *icmp.PacketConn, recv chan<- *packet, ctx *context, wg *sync.WaitGroup) {
+func (p *Pinger) recvICMP(conn *icmp.PacketConn, ctx *context, wg *sync.WaitGroup) {
 	p.debugln("recvICMP(): Start")
 	for {
 		select {
@@ -653,16 +642,7 @@ func (p *Pinger) recvICMP(conn *icmp.PacketConn, recv chan<- *packet, ctx *conte
 				}
 			}
 		}
-		p.debugln("recvICMP(): p.recv <- packet")
-
-		select {
-		case recv <- &packet{bytes: bytes, addr: ra}:
-		case <-ctx.stop:
-			p.debugln("recvICMP(): <-ctx.stop")
-			wg.Done()
-			p.debugln("recvICMP(): wg.Done()")
-			return
-		}
+		p.procRecv(&packet{bytes: bytes, addr: ra})
 	}
 }
 
