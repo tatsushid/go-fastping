@@ -1,18 +1,17 @@
 go-fastping
 ===========
 
-go-fastping is a Go language's ICMP ping library inspired by AnyEvent::FastPing
-Perl module to send ICMP ECHO REQUEST packets quickly. Original Perl module is
-available at
-http://search.cpan.org/~mlehmann/AnyEvent-FastPing-2.01/
+go-fastping is a Go language ICMP ping library, inspired by the `AnyEvent::FastPing`
+Perl module, for quickly sending ICMP ECHO REQUEST packets. Original Perl module
+is available at http://search.cpan.org/~mlehmann/AnyEvent-FastPing-2.01/
 
-It hasn't been fully implemented original functions yet.
+All original functions haven't been implemented yet.
 
 [![GoDoc](https://godoc.org/github.com/tatsushid/go-fastping?status.svg)](https://godoc.org/github.com/tatsushid/go-fastping)
 
 ## Installation
 
-Install and update this go package with `go get -u github.com/tatsushid/go-fastping`
+Install and update with `go get -u github.com/tatsushid/go-fastping`
 
 ## Examples
 
@@ -38,9 +37,10 @@ if err != nil {
 }
 ```
 
-It sends an ICMP packet and wait a response. If it receives a response, it
-calls "receive" callback. After that, MaxRTT time passed, it calls "idle"
-callback. For more detail, refer [godoc][godoc] and if you need more example,
+The example sends an ICMP packet and waits for a response. If it receives a
+response, it calls the "receive" callback. After that, once MaxRTT time has
+passed, it calls the "idle" callback. For more details,
+refer [to the godoc][godoc], and if you need more examples,
 please see "cmd/ping/ping.go".
 
 ## Caution
