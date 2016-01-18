@@ -134,6 +134,7 @@ type Pinger struct {
 	source6 string
 	hasIPv4 bool
 	hasIPv6 bool
+	exact   bool
 	ctx     *context
 	mu      sync.Mutex
 
@@ -164,6 +165,7 @@ func NewPinger() *Pinger {
 		source6: "",
 		hasIPv4: false,
 		hasIPv6: false,
+		exact:   false,
 		Size:    TimeSliceLength,
 		MaxRTT:  time.Second,
 		OnRecv:  nil,
@@ -221,6 +223,13 @@ func (p *Pinger) Source(source string) (string, error) {
 	}
 
 	return origSource, nil
+}
+
+// Exact allow to set more exact latency measurement (but much slower!)
+func (p *Pinger) Exact(exact bool) {
+	p.mu.Lock()
+	p.exact = exact
+	p.mu.Unlock()
 }
 
 // AddIP adds an IP address to Pinger. ipaddr arg should be a string like
@@ -531,10 +540,10 @@ func (p *Pinger) sendICMP(conn, conn6 *icmp.PacketConn) (map[string]*net.IPAddr,
 		}
 
 		p.debugln("sendICMP(): Invoke goroutine")
-		wg.Add(1)
-		go func(conn *icmp.PacketConn, ra net.Addr, b []byte) {
+		if p.exact {
+
 			for {
-				if _, err := conn.WriteTo(bytes, ra); err != nil {
+				if _, err := cn.WriteTo(bytes, dst); err != nil {
 					if neterr, ok := err.(*net.OpError); ok {
 						if neterr.Err == syscall.ENOBUFS {
 							continue
@@ -544,8 +553,24 @@ func (p *Pinger) sendICMP(conn, conn6 *icmp.PacketConn) (map[string]*net.IPAddr,
 				break
 			}
 			p.debugln("sendICMP(): WriteTo End")
-			wg.Done()
-		}(cn, dst, bytes)
+
+		} else {
+			wg.Add(1)
+			go func(conn *icmp.PacketConn, ra net.Addr, b []byte) {
+				for {
+					if _, err := conn.WriteTo(bytes, ra); err != nil {
+						if neterr, ok := err.(*net.OpError); ok {
+							if neterr.Err == syscall.ENOBUFS {
+								continue
+							}
+						}
+					}
+					break
+				}
+				p.debugln("sendICMP(): WriteTo End")
+				wg.Done()
+			}(cn, dst, bytes)
+		}
 	}
 	wg.Wait()
 	p.debugln("sendICMP(): End")
