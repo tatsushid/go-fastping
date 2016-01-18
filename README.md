@@ -21,19 +21,18 @@ Import this package and write
 p := fastping.NewPinger()
 ra, err := net.ResolveIPAddr("ip4:icmp", os.Args[1])
 if err != nil {
-	fmt.Println(err)
-	os.Exit(1)
+	log.Fatal(err.Error())
 }
 p.AddIPAddr(ra)
 p.OnRecv = func(addr *net.IPAddr, rtt time.Duration) {
-	fmt.Printf("IP Addr: %s receive, RTT: %v\n", addr.String(), rtt)
+	log.Printf("IP Addr: %s receive, RTT: %v\n", addr.String(), rtt)
 }
 p.OnIdle = func() {
-	fmt.Println("finish")
+	log.Println("finish")
 }
 err = p.Run()
 if err != nil {
-	fmt.Println(err)
+	log.Println(err.Error())
 }
 ```
 
