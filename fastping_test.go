@@ -186,7 +186,7 @@ func TestRun(t *testing.T) {
 			}
 		}
 
-		p.OnIdle = func() {
+		p.OnIdle = func(_ map[string]*net.IPAddr) {
 			idle = true
 		}
 
@@ -314,7 +314,7 @@ func TestRunLoop(t *testing.T) {
 			recvCount++
 		}
 
-		p.OnIdle = func() {
+		p.OnIdle = func(_ map[string]*net.IPAddr) {
 			idleCount++
 		}
 

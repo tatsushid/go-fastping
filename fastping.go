@@ -144,7 +144,7 @@ type Pinger struct {
 	// elapsed time when Pinger receives a response packet.
 	OnRecv func(*net.IPAddr, time.Duration)
 	// OnIdle is called when MaxRTT time passed
-	OnIdle func()
+	OnIdle func(map[string]*net.IPAddr)
 	// NumGoroutines defines how many goroutines are used when sending ICMP
 	// packets and receiving IPv4/IPv6 ICMP responses. Its default is
 	// runtime.NumCPU().
@@ -307,7 +307,7 @@ func (p *Pinger) AddHandler(event string, handler interface{}) error {
 		}
 		return errors.New("receive event handler should be `func(*net.IPAddr, time.Duration)`")
 	case "idle":
-		if hdl, ok := handler.(func()); ok {
+		if hdl, ok := handler.(func(map[string]*net.IPAddr)); ok {
 			p.mu.Lock()
 			p.OnIdle = hdl
 			p.mu.Unlock()
@@ -463,7 +463,7 @@ mainloop:
 			handler := p.OnIdle
 			p.mu.Unlock()
 			if handler != nil {
-				handler()
+				handler(p.sent)
 			}
 			if once || err != nil {
 				break mainloop
