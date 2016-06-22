@@ -47,6 +47,7 @@ import (
 	"sync"
 	"syscall"
 	"time"
+	"unsafe"
 
 	"golang.org/x/net/icmp"
 	"golang.org/x/net/ipv4"
@@ -74,19 +75,15 @@ func byteSliceOfSize(n int) []byte {
 }
 
 func timeToBytes(t time.Time) []byte {
-	nsec := t.UnixNano()
-	b := make([]byte, 8)
-	for i := uint8(0); i < 8; i++ {
-		b[i] = byte((nsec >> ((7 - i) * 8)) & 0xff)
-	}
-	return b
+	var result [8]byte
+	*(*int64)(unsafe.Pointer(&result[0])) = t.UnixNano()
+	return result[:]
 }
 
 func bytesToTime(b []byte) time.Time {
 	var nsec int64
-	for i := uint8(0); i < 8; i++ {
-		nsec += int64(b[i]) << ((7 - i) * 8)
-	}
+	// better to check, but for performance reason we'll not do this
+	nsec = *(*int64)(unsafe.Pointer(&b[0]))
 	return time.Unix(nsec/1000000000, nsec%1000000000)
 }
 
