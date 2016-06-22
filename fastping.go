@@ -634,10 +634,13 @@ func (p *Pinger) recvICMP(conn *icmp.PacketConn, ctx *context, wg *sync.WaitGrou
 				} else {
 					p.debugln("recvICMP(): OpError happen", err)
 					p.mu.Lock()
+					// prevent 2x close in different threads
+					if ctx.err == nil {
+						p.debugln("recvICMP(): close(ctx.done)")
+						close(ctx.done)
+					}
 					ctx.err = err
 					p.mu.Unlock()
-					p.debugln("recvICMP(): close(ctx.done)")
-					close(ctx.done)
 					p.debugln("recvICMP(): wg.Done()")
 					wg.Done()
 					return
