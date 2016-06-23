@@ -504,20 +504,14 @@ func (p *Pinger) sendICMP(conn, conn6 *icmp.PacketConn) error {
 	results := make(chan sendResult, 1)
 	errors := make(chan []error)
 
-	collectResult := func(results <-chan sendResult, errors chan<- []error) {
+	collectErrors := func(results <-chan sendResult, errors chan<- []error) {
 		var errs []error
 		for r := range results {
-			if r.err != nil {
-				errs = append(errs, r.err)
-			} else {
-				p.mu.Lock()
-				p.sent[r.addr.String()] = r.addr
-				p.mu.Unlock()
-			}
+			errs = append(errs, r.err)
 		}
 		errors <- errs
 	}
-	go collectResult(results, errors)
+	go collectErrors(results, errors)
 
 	wg := new(sync.WaitGroup)
 	sendPacket := func(addrs <-chan *net.IPAddr, results chan<- sendResult) {
@@ -565,19 +559,29 @@ func (p *Pinger) sendICMP(conn, conn6 *icmp.PacketConn) error {
 				dst = &net.UDPAddr{IP: addr.IP, Zone: addr.Zone}
 			}
 
+			// pre-add ip to sent
+			addrString := addr.String()
+			p.mu.Lock()
+			p.sent[addrString] = addr
+			p.mu.Unlock()
+
 			p.debugln("sendICMP(): WriteTo Start")
 			for {
 				if _, err := cn.WriteTo(bytes, dst); err != nil {
 					if neterr, ok := err.(*net.OpError); ok {
 						if neterr.Err == syscall.ENOBUFS {
 							continue
+						} else {
+							// remove ip from `sent` list if not ok
+							p.mu.Lock()
+							delete(p.sent, addrString)
+							p.mu.Unlock()
 						}
 					}
 				}
 				break
 			}
 			p.debugln("sendICMP(): WriteTo End")
-			results <- sendResult{addr: addr, err: nil}
 		}
 		p.debugln("sendICMP(): End sender goroutine")
 	}
