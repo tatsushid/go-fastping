@@ -55,8 +55,11 @@ import (
 )
 
 const (
-	TimeSliceLength  = 8
-	ProtocolICMP     = 1
+	// TimeSliceLength lenght of time slice in bytes
+	TimeSliceLength = 8
+	// ProtocolICMP id of ICMP ip proto
+	ProtocolICMP = 1
+	// ProtocolIPv6ICMP id of ICMPv6 ip proto
 	ProtocolIPv6ICMP = 58
 )
 
