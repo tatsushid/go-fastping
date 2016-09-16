@@ -65,15 +65,6 @@ var (
 	ipv6Proto = map[string]string{"ip": "ip6:ipv6-icmp", "udp": "udp6"}
 )
 
-func byteSliceOfSize(n int) []byte {
-	b := make([]byte, n)
-	for i := 0; i < len(b); i++ {
-		b[i] = 1
-	}
-
-	return b
-}
-
 func timeToBytes(t time.Time) []byte {
 	var result [8]byte
 	*(*int64)(unsafe.Pointer(&result[0])) = t.UnixNano()
@@ -536,7 +527,7 @@ func (p *Pinger) sendICMP(conn, conn6 *icmp.PacketConn) error {
 			t := timeToBytes(time.Now())
 
 			if p.Size-TimeSliceLength != 0 {
-				t = append(t, byteSliceOfSize(p.Size-TimeSliceLength)...)
+				t = append(t, make([]byte, p.Size-TimeSliceLength)...)
 			}
 
 			p.mu.Lock()
