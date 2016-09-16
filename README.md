@@ -29,8 +29,8 @@ p.AddIPAddr(ra)
 p.OnRecv = func(addr *net.IPAddr, rtt time.Duration) {
 	fmt.Printf("IP Addr: %s receive, RTT: %v\n", addr.String(), rtt)
 }
-p.OnIdle = func() {
-	fmt.Println("finish")
+p.OnIdle = func(lost map[string]*net.IPAddr) {
+	fmt.Println("lost:", lost)
 }
 err = p.Run()
 if err != nil {
@@ -50,5 +50,9 @@ uses this package in raw socket mode, it needs to be run as a root user.
 ## License
 go-fastping is under MIT License. See the [LICENSE][license] file for details.
 
-[godoc]: http://godoc.org/github.com/tatsushid/go-fastping
-[license]: https://github.com/tatsushid/go-fastping/blob/master/LICENSE
+## Warning
+this is modified thread-unsafe version! for most purposes original
+https://github.com/tatsushid/go-fastping is much better!
+
+[godoc]: http://godoc.org/github.com/kanocz/go-fastping
+[license]: https://github.com/kanocz/go-fastping/blob/master/LICENSE
