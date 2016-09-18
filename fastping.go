@@ -123,6 +123,7 @@ type Pinger struct {
 	hasIPv6 bool
 	ctx     *context
 	mu      sync.Mutex
+	done    bool
 
 	// Size in bytes of the payload to send
 	Size int
@@ -355,9 +356,6 @@ func (p *Pinger) run() {
 	case <-recvCtx.done:
 		err = recvCtx.err
 	case <-ticker.C:
-		if p.OnIdle != nil {
-			p.OnIdle(p.sent)
-		}
 	}
 
 	ticker.Stop()
@@ -368,6 +366,10 @@ func (p *Pinger) run() {
 	p.ctx.err = err
 
 	close(p.ctx.done)
+
+	if p.OnIdle != nil {
+		p.OnIdle(p.sent)
+	}
 }
 
 func (p *Pinger) sendICMP(conn, conn6 *icmp.PacketConn) error {
@@ -513,11 +515,11 @@ func (p *Pinger) recvICMP(conn *icmp.PacketConn, ctx *context, wg *sync.WaitGrou
 				}
 			}
 		}
-		p.procRecv(bytes, ra)
+		p.procRecv(bytes, ra, ctx)
 	}
 }
 
-func (p *Pinger) procRecv(bytes []byte, ra net.Addr) {
+func (p *Pinger) procRecv(bytes []byte, ra net.Addr, ctx *context) {
 	var ipaddr *net.IPAddr
 	switch adr := ra.(type) {
 	case *net.IPAddr:
@@ -571,6 +573,10 @@ func (p *Pinger) procRecv(bytes []byte, ra net.Addr) {
 
 	p.mu.Lock()
 	delete(p.sent, addr)
+	if len(p.sent) == 0 && !p.done {
+		p.done = true
+		close(ctx.done)
+	}
 	p.mu.Unlock()
 
 	if p.OnRecv != nil {
