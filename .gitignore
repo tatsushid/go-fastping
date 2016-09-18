@@ -25,3 +25,6 @@ cover.out
 
 ping
 !ping/
+
+*.patch
+.vscode

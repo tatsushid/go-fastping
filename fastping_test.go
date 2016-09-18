@@ -186,7 +186,7 @@ func TestRun(t *testing.T) {
 			}
 		}
 
-		p.OnIdle = func() {
+		p.OnIdle = func(_ map[string]*net.IPAddr) {
 			idle = true
 		}
 
@@ -299,59 +299,6 @@ func TestMultiRun(t *testing.T) {
 	}
 }
 
-func TestRunLoop(t *testing.T) {
-	for _, network := range []string{"ip", "udp"} {
-		p := NewPinger()
-		p.Network(network)
-
-		if err := p.AddIP("127.0.0.1"); err != nil {
-			t.Fatalf("AddIP failed: %v", err)
-		}
-		p.MaxRTT = time.Millisecond * 100
-
-		recvCount, idleCount := 0, 0
-		p.OnRecv = func(*net.IPAddr, time.Duration) {
-			recvCount++
-		}
-
-		p.OnIdle = func() {
-			idleCount++
-		}
-
-		var err error
-		p.RunLoop()
-		ticker := time.NewTicker(time.Millisecond * 250)
-		select {
-		case <-p.Done():
-			if err = p.Err(); err != nil {
-				t.Fatalf("Pinger returns error %v", err)
-			}
-		case <-ticker.C:
-			break
-		}
-		ticker.Stop()
-		p.Stop()
-
-		if recvCount < 2 {
-			t.Fatalf("Pinger receive count less than 2")
-		}
-		if idleCount < 2 {
-			t.Fatalf("Pinger idle count less than 2")
-		}
-	}
-}
-
-func TestErr(t *testing.T) {
-	invalidSource := "192.0.2"
-
-	p := NewPinger()
-	p.ctx = newContext()
-
-	_ = p.listen("ip4:icmp", invalidSource)
-	if p.Err() == nil {
-		t.Errorf("Err should return an error but nothing")
-	}
-}
 
 func TestListen(t *testing.T) {
 	noSource := ""
@@ -362,7 +309,7 @@ func TestListen(t *testing.T) {
 
 	conn := p.listen("ip4:icmp", noSource)
 	if conn == nil {
-		t.Errorf("listen failed: %v", p.Err())
+		t.Errorf("listen failed: %v", p.ctx.err)
 	} else {
 		conn.Close()
 	}
@@ -376,7 +323,7 @@ func TestListen(t *testing.T) {
 
 func TestTimeToBytes(t *testing.T) {
 	// 2009-11-10 23:00:00 +0000 UTC = 1257894000000000000
-	expect := []byte{0x11, 0x74, 0xef, 0xed, 0xab, 0x18, 0x60, 0x00}
+	expect := []byte{0x00, 0x60, 0x18, 0xab, 0xed, 0xef, 0x74, 0x11}
 	tm, err := time.Parse(time.RFC3339, "2009-11-10T23:00:00Z")
 	if err != nil {
 		t.Errorf("time.Parse failed: %v", err)
@@ -392,7 +339,7 @@ func TestTimeToBytes(t *testing.T) {
 
 func TestBytesToTime(t *testing.T) {
 	// 2009-11-10 23:00:00 +0000 UTC = 1257894000000000000
-	b := []byte{0x11, 0x74, 0xef, 0xed, 0xab, 0x18, 0x60, 0x00}
+	b := []byte{0x00, 0x60, 0x18, 0xab, 0xed, 0xef, 0x74, 0x11}
 	expect, err := time.Parse(time.RFC3339, "2009-11-10T23:00:00Z")
 	if err != nil {
 		t.Errorf("time.Parse failed: %v", err)
@@ -417,7 +364,7 @@ func TestTimeToBytesToTime(t *testing.T) {
 
 func TestPayloadSizeDefault(t *testing.T) {
 	s := timeToBytes(time.Now())
-	d := append(s, byteSliceOfSize(8-TimeSliceLength)...)
+	d := append(s, make([]byte,8-TimeSliceLength)...)
 
 	if len(d) != 8 {
 		t.Errorf("Payload size incorrect: got %d, expected: %d", len(d), 8)
@@ -426,7 +373,7 @@ func TestPayloadSizeDefault(t *testing.T) {
 
 func TestPayloadSizeCustom(t *testing.T) {
 	s := timeToBytes(time.Now())
-	d := append(s, byteSliceOfSize(64-TimeSliceLength)...)
+	d := append(s, make([]byte,64-TimeSliceLength)...)
 
 	if len(d) != 64 {
 		t.Errorf("Payload size incorrect: got %d, expected: %d", len(d), 64)
