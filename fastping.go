@@ -461,6 +461,9 @@ mainloop:
 		case r := <-recv:
 			p.debugln("Run(): <-recv")
 			p.procRecv(r, queue)
+			if once {
+				break mainloop
+			}
 		}
 	}
 
