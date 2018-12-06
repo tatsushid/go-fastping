@@ -22,7 +22,7 @@ func TestSource(t *testing.T) {
 		origSource, err := p.Source(tt.firstAddr)
 		if tt.invalid {
 			if err == nil {
-				t.Errorf("[%d] Source should return an error but nothing: %v", i)
+				t.Errorf("[%d] Source should return an error but nothing", i)
 			}
 			continue
 		}
