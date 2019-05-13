@@ -573,6 +573,7 @@ func (p *Pinger) recvICMP(conn *icmp.PacketConn, recv chan<- *packet, ctx *conte
 			if neterr, ok := err.(*net.OpError); ok {
 				if neterr.Timeout() {
 					p.debugln("recvICMP(): Read Timeout")
+					p.isRecv = false
 					continue
 				} else {
 					p.debugln("recvICMP(): OpError happen", err)
