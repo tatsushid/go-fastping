@@ -506,7 +506,7 @@ func (p *Pinger) sendICMP(conn, conn6 *icmp.PacketConn) (map[string]*net.IPAddr,
 
 		t := timeToBytes(time.Now())
 
-		if p.Size-TimeSliceLength != 0 {
+		if p.Size-TimeSliceLength > 0 {
 			t = append(t, byteSliceOfSize(p.Size-TimeSliceLength)...)
 		}
 
