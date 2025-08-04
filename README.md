@@ -47,6 +47,11 @@ please see "cmd/ping/ping.go".
 This package implements ICMP ping using both raw socket and UDP. If your program
 uses this package in raw socket mode, it needs to be run as a root user.
 
+If you are using the UDP socket on Linux, you may also need to allow UDP pings (even root is not allowed by default on debian for example):
+```
+sudo sysctl -w net.ipv4.ping_group_range="0 2147483647"
+```
+
 ## License
 go-fastping is under MIT License. See the [LICENSE][license] file for details.
 
